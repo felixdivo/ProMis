@@ -15,7 +15,7 @@ from itertools import product
 # Third Party
 import matplotlib.pyplot as plt
 from matplotlib.transforms import Bbox
-from numpy import array, sum, uint8, vstack, zeros
+from numpy import ndarray, array, sum, uint8, vstack, zeros
 from PIL import Image
 from sklearn.preprocessing import MinMaxScaler
 
@@ -27,7 +27,6 @@ from promis.models import GaussianMixture
 
 
 class RasterBand:
-
     """A Cartesian raster-band representing map data concerning a location type.
 
     Args:
@@ -38,13 +37,20 @@ class RasterBand:
     """
 
     def __init__(
-        self, resolution: tuple[int, int], origin: PolarLocation, width: float, height: float
+        self,
+        resolution: tuple[int, int] | ndarray,  # or data
+        origin: PolarLocation,
+        width: float,
+        height: float,
     ):
         # Attributes setup
         self.origin = origin
         self.width = width
         self.height = height
-        self.data = zeros(resolution)
+        if isinstance(resolution, ndarray):
+            self.data = resolution
+        else:
+            self.data = zeros(resolution)
 
         # Dimension of each pixel in meters
         self.pixel_width = self.width / self.data.shape[0]
@@ -66,40 +72,43 @@ class RasterBand:
 
     @classmethod
     def from_map(
-        cls, map_: PolarMap | CartesianMap, location_type: LocationType, resolution: tuple[int, int]
+        cls,
+        map: PolarMap | CartesianMap,
+        location_type: LocationType,
+        resolution: tuple[int, int],
+        normalize: bool = True,
     ) -> "RasterBand":
         """Takes a PolarMap or CartesianMap to initialize the raster band data.
 
         Args:
-            map_: The map to read from
+            map: The map to read from
             location_type: The location type to create a raster-band from
             resolution: The resolution of the raster-band data
+            normalize: Whether to normalize the raster-band data to ``[0, 1]``
 
         Returns:
             The raster-band with dimensions and data retrieved from reading the map data
         """
 
         # Attributes setup
-        map_ = map_ if isinstance(map_, CartesianMap) else map_.to_cartesian()
+        map = map if isinstance(map, CartesianMap) else map.to_cartesian()
 
         # Create and prepare figure for plotting
-        figure, axis = plt.subplots(figsize=(map_.width, map_.height), dpi=1)
+        figure, axis = plt.subplots(figsize=(map.width, map.height), dpi=1)
         axis.set_aspect("equal")
         axis.set_axis_off()
-        axis.set_xlim([-map_.width, map_.width])
-        axis.set_ylim([-map_.height, map_.height])
+        axis.set_xlim([-map.width, map.width])
+        axis.set_ylim([-map.height, map.height])
 
         # Plot all features with this type
         # TODO: Only considers polygons right now
-        for feature in map_.features:
+        for feature in map.features:
             if isinstance(feature, CartesianPolygon) and feature.location_type == location_type:
                 feature.plot(axis, facecolor="black")
 
         # Create a bounding box with the actual map data
         figure.canvas.draw()
-        bounding_box = Bbox(
-            [[-map_.width / 2, -map_.height / 2], [map_.width / 2, map_.height / 2]]
-        )
+        bounding_box = Bbox([[-map.width / 2, -map.height / 2], [map.width / 2, map.height / 2]])
         bounding_box = bounding_box.transformed(axis.transData).transformed(
             figure.dpi_scale_trans.inverted()
         )
@@ -110,26 +119,19 @@ class RasterBand:
         # Clean up
         plt.close(figure)
 
-        # If raster-band contains no data, we can set to zeros
-        extrema = raster_band_image.convert("L").getextrema()
-        if extrema[0] == extrema[1]:
-            data = zeros(resolution)
+        # Resize to specified resolution
+        raster_band_image = raster_band_image.resize(resolution)
 
-        # Else we setup the data as numpy array
-        else:
-            # Resize to specified resolution
-            raster_band_image = raster_band_image.resize(resolution)
-
-            # Convert to numpy and normalize from discrete [0, 255] to continuous [0, 1]
-            # Since we draw existing features in black on a white background, we invert colors
-            # Also drop two of the three sub-bands since all are equal
-            data = array(raster_band_image, dtype="float32")
-            data = data[:, :, 0]
+        # Convert to numpy and normalize from discrete [0, 255] to continuous [0, 1]
+        # Since we draw existing features in black on a white background, we invert colors
+        # Also drop two of the three sub-bands since all are equal
+        data = array(raster_band_image, dtype="float32")
+        data = data[:, :, 0]
+        if normalize:
             data /= 255.0
             data = 1 - data
-            data = data.transpose()
 
-        return cls(data, map_.origin, map_.width, map_.height)
+        return cls(data, map.origin, map.width, map.height)
 
     @classmethod
     def from_gaussian_mixture(
