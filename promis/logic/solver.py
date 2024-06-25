@@ -22,7 +22,7 @@ from problog.tasks.dcproblog.solver import InferenceSolver
 
 # ProMis
 from promis.geo import PolarLocation, RasterBand
-from promis.logic.spatial import Distance, Over
+from promis.logic.spatial import Distance, Over, Depth
 
 
 class Solver:
@@ -54,12 +54,16 @@ class Solver:
         # Collections for parameters
         self.distances = []
         self.overs = []
+        self.depth = None
 
     def add_distance(self, distance: Distance):
         self.distances.append(distance)
 
     def add_over(self, over: Over):
         self.overs.append(over)
+
+    def add_depth(self, depth: Depth):
+        self.depth = depth  # TODO why only single?
 
     def solve(self, n_jobs: int = 1, batch_size: int = 1) -> tuple[RasterBand, float, float, float]:
         """Solve the given ProMis problem.
@@ -96,6 +100,9 @@ class Solver:
                     parameters += distance.index_to_distributional_clause(index)
                 for over in self.overs:
                     parameters += over.index_to_distributional_clause(index)
+
+                if self.depth is not None:
+                    parameters += self.depth.index_to_distributional_clause(index)
 
             # Add program and drop indices that are being worked on
             programs.append(self.knowledge_base + "\n" + queries + "\n" + parameters)

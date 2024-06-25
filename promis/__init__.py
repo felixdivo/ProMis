@@ -21,5 +21,3 @@ def get_author():
 
 def get_version():
     return __version__
-
-

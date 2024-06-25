@@ -113,7 +113,7 @@ class Map(ABC):
             for _ in range(number_of_samples)
         ]
 
-    def apply_covariance(self, covariance: ndarray):
+    def apply_covariance(self, covariance: ndarray| None):
         """Set the covariance matrix of all features.
 
         Args:

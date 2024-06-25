@@ -107,6 +107,9 @@ class LocationType(IntEnum):
     #: A rail for passengers or cargo trains
     RAIL = 27
 
+    #: A rail for passengers or cargo trains
+    ANCHORAGE = 28
+
     @classmethod
     def max_value(cls) -> int:
         """Get the maximum value of all members of this enum."""

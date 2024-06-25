@@ -12,6 +12,7 @@
 from multiprocessing import Pool
 from pickle import Pickler, load
 from time import sleep
+from pathlib import Path
 
 # Third Party
 from numpy import ndarray
@@ -21,7 +22,7 @@ from overpy.exception import OverpassGatewayTimeout, OverpassTooManyRequests
 from promis.geo import CartesianMap, LocationType, PolarLocation, RasterBand
 from promis.loaders import OsmLoader
 from promis.logic import Solver
-from promis.logic.spatial import Distance, Over
+from promis.logic.spatial import Distance, Over, Depth
 
 
 class ProMis:
@@ -69,8 +70,9 @@ class ProMis:
         # Setup distance and over relations
         self.distances = dict()
         self.overs = dict()
+        self.depth = None
 
-    def compute_distributions(self, covariance: ndarray, cache: str = ""):
+    def compute_distributions(self, covariance: ndarray | None, cache: str = ""):
         """Compute distributional clauses.
         
         Args:
@@ -92,13 +94,15 @@ class ProMis:
             )
 
             # Load pickle if already exists
+            Path(cache).mkdir(parents=True, exist_ok=True)
             try:
                 with open(f"{cache}/distance_{extension}.pkl", "rb") as pkl_file:
-                    distance = load(pkl_file)
-                    self.distances[location_type] = distance
+                    self.distances[location_type] = load(pkl_file)
                 with open(f"{cache}/over_{extension}.pkl", "rb") as pkl_file:
-                    over = load(pkl_file)
-                    self.overs[location_type] = over
+                    self.overs[location_type] = load(pkl_file)
+                with open(f"{cache}/depth_{extension}.pkl", "rb") as pkl_file:
+                    self.depth = load(pkl_file)
+
             # Else recompute and store results
             except FileNotFoundError:
                 # Work on both spatial relations in parallel
@@ -111,6 +115,7 @@ class ProMis:
                         Over.from_map,
                         (self.map, location_type, self.resolution, self.number_of_random_maps),
                     )
+                    depth = Depth.from_map(self.map, self.resolution, self.number_of_random_maps)
 
                     # Append results to dictionaries
                     distance_result = distance.get()
@@ -125,6 +130,10 @@ class ProMis:
                     self.overs[location_type] = over_result
                     with open(f"{cache}/over_{extension}.pkl", "wb") as file:
                         Pickler(file).dump(self.overs[location_type])
+                if depth is not None:
+                    self.depth = depth
+                    with open(f"{cache}/depth_{extension}.pkl", "wb") as file:
+                        Pickler(file).dump(self.depth)
 
     def add_feature(self, feature):
         self.map.features.append(feature)
@@ -153,5 +162,6 @@ class ProMis:
             solver.add_distance(distance)
         for over in self.overs.values():
             solver.add_over(over)
+        solver.add_depth(self.depth)
 
         return solver.solve(n_jobs, batch_size)
