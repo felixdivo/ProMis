@@ -10,23 +10,22 @@
 
 # Standard Library
 from multiprocessing import Pool
+from pathlib import Path
 from pickle import Pickler, load
 from time import sleep
-from pathlib import Path
 
 # Third Party
 from numpy import ndarray
 from overpy.exception import OverpassGatewayTimeout, OverpassTooManyRequests
 
 # ProMis
-from promis.geo import CartesianMap, LocationType, PolarLocation, RasterBand
+from promis.geo import LocationType, PolarLocation, RasterBand
 from promis.loaders import OsmLoader
 from promis.logic import Solver
-from promis.logic.spatial import Distance, Over, Depth
+from promis.logic.spatial import Depth, Distance, Over
 
 
 class ProMis:
-
     """The ProMis engine to create Probabilistic Mission Landscapes."""
 
     def __init__(
@@ -36,8 +35,8 @@ class ProMis:
         resolution: tuple[int, int],
         location_types: list[LocationType],
         number_of_random_maps: int,
-        timeout: float = 5.0
-    ) -> "ProMis":
+        timeout: float = 5.0,
+    ) -> None:
         """Setup the ProMis engine.
 
         Args:
@@ -70,18 +69,21 @@ class ProMis:
         # Setup distance and over relations
         self.distances = dict()
         self.overs = dict()
-        self.depth = None
+        self.depth = None  # Only one singleton depth makes sense
 
-    def compute_distributions(self, covariance: ndarray | None, cache: str = ""):
+    def compute_distributions(self, covariance: ndarray | None, cache: Path | str):
         """Compute distributional clauses.
-        
+
         Args:
             covariance: The covariance matrix to apply to all map features
-            cache: Where to store or load from computed spatial relations 
+            cache: Where to store or load from computed spatial relations
         """
 
         # Apply same uncertainty to all map features
         self.map.apply_covariance(covariance)
+
+        cache_path = Path(cache)
+        cache_path.mkdir(parents=True, exist_ok=True)
 
         for location_type in self.location_types:
             # File identifier from parameters
@@ -94,13 +96,12 @@ class ProMis:
             )
 
             # Load pickle if already exists
-            Path(cache).mkdir(parents=True, exist_ok=True)
             try:
-                with open(f"{cache}/distance_{extension}.pkl", "rb") as pkl_file:
+                with open(cache_path / f"distance_{extension}.pkl", "rb") as pkl_file:
                     self.distances[location_type] = load(pkl_file)
-                with open(f"{cache}/over_{extension}.pkl", "rb") as pkl_file:
+                with open(cache_path / f"over_{extension}.pkl", "rb") as pkl_file:
                     self.overs[location_type] = load(pkl_file)
-                with open(f"{cache}/depth_{extension}.pkl", "rb") as pkl_file:
+                with open(cache_path / f"depth_{extension}.pkl", "rb") as pkl_file:
                     self.depth = load(pkl_file)
 
             # Else recompute and store results
@@ -124,21 +125,23 @@ class ProMis:
                 # Export as pkl
                 if distance_result is not None:
                     self.distances[location_type] = distance_result
-                    with open(f"{cache}/distance_{extension}.pkl", "wb") as file:
+                    with open(cache_path / f"distance_{extension}.pkl", "wb") as file:
                         Pickler(file).dump(self.distances[location_type])
                 if over_result is not None:
                     self.overs[location_type] = over_result
-                    with open(f"{cache}/over_{extension}.pkl", "wb") as file:
+                    with open(cache_path / f"over_{extension}.pkl", "wb") as file:
                         Pickler(file).dump(self.overs[location_type])
                 if depth is not None:
                     self.depth = depth
-                    with open(f"{cache}/depth_{extension}.pkl", "wb") as file:
+                    with open(cache_path / f"depth_{extension}.pkl", "wb") as file:
                         Pickler(file).dump(self.depth)
 
     def add_feature(self, feature):
         self.map.features.append(feature)
 
-    def generate(self, logic: str, n_jobs: int = 1, batch_size: int = 1) -> tuple[RasterBand, float, float, float]:
+    def generate(
+        self, logic: str, n_jobs: int = 1, batch_size: int = 1
+    ) -> tuple[RasterBand, float, float, float]:
         """Solve the given ProMis problem.
 
         Args:

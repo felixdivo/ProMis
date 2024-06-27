@@ -22,11 +22,10 @@ from problog.tasks.dcproblog.solver import InferenceSolver
 
 # ProMis
 from promis.geo import PolarLocation, RasterBand
-from promis.logic.spatial import Distance, Over, Depth
+from promis.logic.spatial import Depth, Distance, Over
 
 
 class Solver:
-
     """A solver for HPLP based ProMis."""
 
     def __init__(
@@ -54,7 +53,7 @@ class Solver:
         # Collections for parameters
         self.distances = []
         self.overs = []
-        self.depth = None
+        self.depth = []
 
     def add_distance(self, distance: Distance):
         self.distances.append(distance)
@@ -63,7 +62,7 @@ class Solver:
         self.overs.append(over)
 
     def add_depth(self, depth: Depth):
-        self.depth = depth  # TODO why only single?
+        self.depth.append(depth)
 
     def solve(self, n_jobs: int = 1, batch_size: int = 1) -> tuple[RasterBand, float, float, float]:
         """Solve the given ProMis problem.
@@ -88,7 +87,7 @@ class Solver:
         start = time()
         for batch in range(ceil(len(indices) / batch_size)):
             # Get the relevant indices
-            batch_index = indices[batch * batch_size:(batch + 1) * batch_size]
+            batch_index = indices[batch * batch_size : (batch + 1) * batch_size]
 
             # Build queries and parameters of this program
             queries = ""
@@ -100,9 +99,8 @@ class Solver:
                     parameters += distance.index_to_distributional_clause(index)
                 for over in self.overs:
                     parameters += over.index_to_distributional_clause(index)
-
-                if self.depth is not None:
-                    parameters += self.depth.index_to_distributional_clause(index)
+                for depth in self.depth:
+                    parameters += depth.index_to_distributional_clause(index)
 
             # Add program and drop indices that are being worked on
             programs.append(self.knowledge_base + "\n" + queries + "\n" + parameters)
@@ -110,7 +108,10 @@ class Solver:
 
         # Setup tasks by compileing the individual programs and packageing them with solver and configuration
         start = time()
-        tasks = [(PrologString(program, parser=DCParser()), self.solver, self.configuration) for program in programs]
+        tasks = [
+            (PrologString(program, parser=DCParser()), self.solver, self.configuration)
+            for program in programs
+        ]
         compile_time = time() - start
 
         # Run inference over batches of data
@@ -128,7 +129,11 @@ class Solver:
         return result, program_time, compile_time, inference_time
 
     @staticmethod
-    def inference(program: PrologString, solver: InferenceSolver | None = None, configuration: dict | None = None) -> RasterBand:
+    def inference(
+        program: PrologString,
+        solver: InferenceSolver | None = None,
+        configuration: dict | None = None,
+    ) -> RasterBand:
         # Get solver with (default) settings if none was provided
         if configuration is None:
             configuration = {
