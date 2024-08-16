@@ -8,6 +8,9 @@
 # If not, see https://opensource.org/license/bsd-3-clause/.
 #
 
+# Standard Library
+from typing import TypeAlias
+
 # ProMis
 from promis.geo.geospatial import Geospatial
 from promis.geo.helpers import Direction
@@ -18,7 +21,13 @@ from promis.geo.polygon import CartesianPolygon, PolarPolygon
 from promis.geo.raster_band import RasterBand
 from promis.geo.route import CartesianRoute, PolarRoute
 
+# Type aliases
+CartesianGeometry: TypeAlias = CartesianLocation | CartesianMap | CartesianPolygon | CartesianRoute
+PolarGeometry: TypeAlias = PolarLocation | PolarMap | PolarPolygon | PolarRoute
+
+
 __all__ = [
+    "CartesianGeometry",
     "CartesianLocation",
     "CartesianMap",
     "CartesianPolygon",
@@ -26,6 +35,7 @@ __all__ = [
     "Direction",
     "Geospatial",
     "LocationType",
+    "PolarGeometry",
     "PolarLocation",
     "PolarMap",
     "PolarPolygon",

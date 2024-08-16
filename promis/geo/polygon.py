@@ -10,21 +10,21 @@ coordinates using shapely."""
 #
 
 # Standard Library
-from typing import Any, TypeVar
 from math import degrees, radians
+from typing import Any, TypeVar
 
 # Third Party
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
-from numpy import asarray, isfinite, ndarray, vstack, array
+from numpy import array, asarray, isfinite, ndarray, vstack
 from shapely.geometry import Polygon as ShapelyPolygon
 
 # ProMis
 from promis.geo.geospatial import Geospatial, LocationType
+from promis.geo.helpers import meters_to_radians, radians_to_meters
 from promis.geo.location import CartesianLocation, PolarLocation
 from promis.models import Gaussian
-from promis.geo.helpers import radians_to_meters, meters_to_radians
 
 #: Helper to define <Polar|Cartesian>Location operatios within base class
 DerivedPolygon = TypeVar("DerivedPolygon", bound="Polygon")
@@ -118,7 +118,6 @@ class Polygon(Geospatial):
 
 
 class PolarPolygon(Polygon):
-
     """A polygon based on WGS84 coordinates.
 
     An object with only a single point may be represented by
@@ -231,7 +230,11 @@ class PolarPolygon(Polygon):
             location_type=self.location_type,
             name=self.name,
             identifier=self.identifier,
-            covariance=radians_to_meters(array([radians(degree) for degree in self.distribution.covariance.reshape(4)]).reshape(2, 2))
+            covariance=radians_to_meters(
+                array(
+                    [radians(degree) for degree in self.distribution.covariance.reshape(4)]
+                ).reshape(2, 2)
+            )
             if self.distribution is not None
             else None,
             origin=origin,
@@ -244,7 +247,6 @@ class PolarPolygon(Polygon):
 
 
 class CartesianPolygon(Polygon):
-
     """A cartesian polygon based on local coordinates with an optional global reference.
 
     Examples:
@@ -346,6 +348,14 @@ class CartesianPolygon(Polygon):
         assert data.shape[0] == 2
         assert isfinite(data).all()
 
+        # Transform the holes too, if given
+        if args and isinstance(args[0], list):
+            args[0] = [[CartesianLocation(x, y) for x, y in hole.T] for hole in args[0]]
+        elif "holes" in kwargs:
+            kwargs["holes"] = [
+                [CartesianLocation(x, y) for x, y in hole.T] for hole in kwargs["holes"]
+            ]
+
         # Return appropriate polygon type
         return cls(
             [CartesianLocation(x, y) for (x, y) in data.T],
@@ -372,7 +382,9 @@ class CartesianPolygon(Polygon):
                 )
             origin = self.origin
         elif self.origin is not None and origin is not self.origin:
-            raise ValueError("You provided an explicit origin while the instance already has a different one")
+            raise ValueError(
+                "You provided an explicit origin while the instance already has a different one"
+            )
 
         # Hole locations to polar
         holes = [[location.to_polar(origin) for location in hole] for hole in self.holes]
@@ -384,7 +396,9 @@ class CartesianPolygon(Polygon):
             location_type=self.location_type,
             name=self.name,
             identifier=self.identifier,
-            covariance=array([degrees(rad) for rad in meters_to_radians(self.distribution.covariance).reshape(4)]).reshape(2, 2)
+            covariance=array(
+                [degrees(rad) for rad in meters_to_radians(self.distribution.covariance).reshape(4)]
+            ).reshape(2, 2)
             if self.distribution is not None
             else None,
         )

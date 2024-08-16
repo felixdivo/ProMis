@@ -67,9 +67,9 @@ class ProMis:
                 sleep(timeout)
 
         # Setup distance and over relations
-        self.distances = dict()
-        self.overs = dict()
-        self.depth = None  # Only one singleton depth makes sense
+        self.distances: dict[LocationType, Distance] = dict()
+        self.overs: dict[LocationType, Over] = dict()
+        self.depth: None | Depth = None  # Only one singleton depth makes sense
 
     def compute_distributions(self, covariance: ndarray | None, cache: Path | str):
         """Compute distributional clauses.
@@ -107,7 +107,7 @@ class ProMis:
             # Else recompute and store results
             except FileNotFoundError:
                 # Work on both spatial relations in parallel
-                with Pool(2) as pool:
+                with Pool(3) as pool:
                     distance = pool.apply_async(
                         Distance.from_map,
                         (self.map, location_type, self.resolution, self.number_of_random_maps),
@@ -116,11 +116,15 @@ class ProMis:
                         Over.from_map,
                         (self.map, location_type, self.resolution, self.number_of_random_maps),
                     )
-                    depth = Depth.from_map(self.map, self.resolution, self.number_of_random_maps)
+                    depth = pool.apply_async(
+                        Depth.from_map,
+                        (self.map, self.resolution),
+                    )
 
                     # Append results to dictionaries
                     distance_result = distance.get()
                     over_result = over.get()
+                    depth_result = depth.get()
 
                 # Export as pkl
                 if distance_result is not None:
@@ -131,8 +135,8 @@ class ProMis:
                     self.overs[location_type] = over_result
                     with open(cache_path / f"over_{extension}.pkl", "wb") as file:
                         Pickler(file).dump(self.overs[location_type])
-                if depth is not None:
-                    self.depth = depth
+                if depth_result is not None:
+                    self.depth = depth_result
                     with open(cache_path / f"depth_{extension}.pkl", "wb") as file:
                         Pickler(file).dump(self.depth)
 
@@ -165,6 +169,7 @@ class ProMis:
             solver.add_distance(distance)
         for over in self.overs.values():
             solver.add_over(over)
-        solver.add_depth(self.depth)
+        if self.depth is not None:
+            solver.add_depth(self.depth)
 
         return solver.solve(n_jobs, batch_size)

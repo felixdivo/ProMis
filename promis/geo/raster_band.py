@@ -9,17 +9,22 @@
 #
 
 # Standard Library
+from collections import defaultdict
+from collections.abc import Callable
 from io import BytesIO
 from itertools import product
 
 # Third Party
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from matplotlib.transforms import Bbox
-from numpy import ndarray, array, sum, uint8, vstack, zeros
-from PIL import Image
+from numpy import array, float32, ndarray, sum, uint8, vstack, zeros
+from PIL.Image import Image, fromarray
+from PIL.Image import open as open_image
 from sklearn.preprocessing import MinMaxScaler
 
 # ProMis
+import promis.geo
 from promis.geo.location_type import LocationType
 from promis.geo.map import CartesianLocation, CartesianMap, PolarLocation, PolarMap
 from promis.geo.polygon import CartesianPolygon
@@ -74,9 +79,9 @@ class RasterBand:
     def from_map(
         cls,
         map: PolarMap | CartesianMap,
-        location_type: LocationType,
+        location_types: LocationType | set[LocationType],
         resolution: tuple[int, int],
-        normalize: bool = True,
+        feature_to_value: None | Callable[["promis.geo.CartesianGeometry"], float] = None,
     ) -> "RasterBand":
         """Takes a PolarMap or CartesianMap to initialize the raster band data.
 
@@ -84,7 +89,7 @@ class RasterBand:
             map: The map to read from
             location_type: The location type to create a raster-band from
             resolution: The resolution of the raster-band data
-            normalize: Whether to normalize the raster-band data to ``[0, 1]``
+            feature_to_value: A function that takes a feature and returns a value for the final data
 
         Returns:
             The raster-band with dimensions and data retrieved from reading the map data
@@ -100,11 +105,40 @@ class RasterBand:
         axis.set_xlim([-map.width, map.width])
         axis.set_ylim([-map.height, map.height])
 
+        # Update the location types to a set
+        if isinstance(location_types, LocationType):
+            location_types = {location_types}
+
+        # Collect all features that we want to plot
+        all_features = [
+            feature
+            for feature in map.features
+            # TODO: Only considers polygons right now
+            if feature.location_type in location_types and isinstance(feature, CartesianPolygon)
+        ]
+
+        # Compute all values for the features
+        if feature_to_value is None:
+            # Use an identity mapping
+            all_values = defaultdict(lambda: 1)
+
+            def backward(data: array) -> array:
+                return data
+        else:
+            all_values = array(
+                [feature_to_value(feature) for feature in all_features], dtype=float32
+            )
+
+            # Scale all to [0, 1]
+            scaler = MinMaxScaler()
+            all_values = scaler.fit_transform(all_values.reshape(-1, 1)).reshape(-1)
+
+            def backward(data: array) -> array:
+                return scaler.inverse_transform(data.reshape(-1, 1)).reshape(data.shape)
+
         # Plot all features with this type
-        # TODO: Only considers polygons right now
-        for feature in map.features:
-            if isinstance(feature, CartesianPolygon) and feature.location_type == location_type:
-                feature.plot(axis, facecolor="black")
+        for index, feature in enumerate(all_features):
+            feature.plot(axis, facecolor=("black", all_values[index]))
 
         # Create a bounding box with the actual map data
         figure.canvas.draw()
@@ -117,6 +151,7 @@ class RasterBand:
         raster_band_image = cls._figure_to_image(figure, bounding_box)
 
         # Clean up
+        # This could be can for debugging:  plt.show(figure)
         plt.close(figure)
 
         # Resize to specified resolution
@@ -125,11 +160,11 @@ class RasterBand:
         # Convert to numpy and normalize from discrete [0, 255] to continuous [0, 1]
         # Since we draw existing features in black on a white background, we invert colors
         # Also drop two of the three sub-bands since all are equal
-        data = array(raster_band_image, dtype="float32")
-        data = data[:, :, 0]
-        if normalize:
-            data /= 255.0
-            data = 1 - data
+        data = array(raster_band_image, dtype=float32)
+        data = 1 - (data[:, :, 0] / 255)
+
+        # Undo the RGB formatting and value transformation above back to what feature_to_value gave us
+        data = backward(data)
 
         return cls(data, map.origin, map.width, map.height)
 
@@ -170,7 +205,7 @@ class RasterBand:
         for i, gaussian in enumerate(gaussian_mixture):
             # Our cache is a defaultdict that initializes with the CDF of the Gaussian
             # This simplifies going over all indices and caching all CDFs
-            cdf_raster: dict[tuple(float, float), float] = {}
+            cdf_raster: dict[tuple[float, float], float] = {}
 
             for index in product(range(resolution[0]), range(resolution[1])):
                 # Cell coordinates
@@ -300,7 +335,7 @@ class RasterBand:
 
     def to_image(self) -> Image:
         image_data = MinMaxScaler(feature_range=(0, 255)).fit_transform(self.data)
-        return Image.fromarray(uint8(image_data.transpose()))
+        return fromarray(uint8(image_data.T))
 
     def save_as_image(self, path: str):
         """Saves the raster-band data as image file.
@@ -346,7 +381,7 @@ class RasterBand:
                 csv_file.write("\n")
 
     @staticmethod
-    def _figure_to_image(figure, bounding_box=None) -> Image.Image:
+    def _figure_to_image(figure: Figure, bounding_box=None) -> Image:
         """Convert a Matplotlib figure to a PIL Image.
 
         Args:
@@ -363,4 +398,4 @@ class RasterBand:
         buffer.seek(0)
 
         # Open the image from in-memory buffer and return
-        return Image.open(buffer)
+        return open_image(buffer)
