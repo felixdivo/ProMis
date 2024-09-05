@@ -12,14 +12,16 @@
 import warnings
 from collections import defaultdict
 from copy import deepcopy
+from functools import cache
 from itertools import product
 from pickle import dump, load
 from time import time
 
 # Third Party
-from numpy import array, sort, unique, vstack
+from numpy import array, sort, unique
 from numpy.random import choice
 from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
+from shapely import STRtree
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
@@ -330,47 +332,46 @@ class StaRMap:
             location_types: Which types of geospatial data to compute
         """
 
+        # TODO: This could be parallelized, as each relation is independent from the others.
+
+        support_coordinates = support.coordinates()
+        support_points = array([location.geometry for location in support.to_cartesian_locations()])
+
         if relations is None:
             relations = self.relations.keys()
 
         if location_types is None:
             location_types = self.location_types
 
+        @cache
+        def sampled_rtrees_for(location_type: str | None) -> list[STRtree]:
+            filtered_map: CartesianMap = self.uam.filter(location_type)
+            return [
+                random_map.to_rtree() for random_map in filtered_map.sample(number_of_random_maps)
+            ]
+
         for relation, location_type in product(relations, location_types):
             # Get all relevant features from map
             if location_type is None:
-                continue
-            typed_map: CartesianMap = self.uam.filter(location_type)
+                continue  # Skip depth, as it is handled separately below
+            r_trees = sampled_rtrees_for(location_type)
 
             # If map had no relevant features, fill with default values
-            if not typed_map.features:
+            if r_trees[0].geometries.size == 0:
                 self.relations[relation][location_type]["collection"].append_with_default(
-                    support.coordinates(), (None, None)
+                    support_coordinates, (None, None)
                 )
             else:
                 match relation:
                     case "distance" | "over":
                         # Setup data structures
-                        random_maps = typed_map.sample(number_of_random_maps)
-                        r_trees = [instance.to_rtree() for instance in random_maps]
-                        locations = support.to_cartesian_locations()
-                        values = vstack(
-                            [
-                                self.relation_name_to_class(relation).compute_parameters(
-                                    location, r_trees
-                                )
-                                for location in locations
-                            ]
+                        values = self.relation_name_to_class(relation).compute_parameters(
+                            support_points, r_trees
                         )
-
-                        # TODO This is very slow.
-                        # One could make better use of calling rtrees above.
-                        # Currently, each rtree is called separately for each location and each sample.
-                        # We can vectorized over both, any possibly even parallelize it if not already done so by the rtree implementation.
 
                         # Add to collections
                         self.relations[relation][location_type]["collection"].append(
-                            locations, values
+                            support_coordinates, values
                         )
                     case "depth":
                         pass  # Nothing to do here per location_type, it's handled specially below
@@ -382,11 +383,11 @@ class StaRMap:
             location_type in self.location_types for location_type in Depth.RELEVANT_LOCATION_TYPES
         ):
             self.relations["depth"][None]["collection"].append(
-                support.to_cartesian_locations(), Depth.compute_parameters(self.uam, support).T
+                support_coordinates, Depth.compute_parameters(self.uam, support).T
             )
         else:
             self.relations["depth"][None]["collection"].append_with_default(
-                support.coordinates(), (None, None)
+                support_coordinates, (None, None)
             )
 
         self.fit(relations, location_types)

@@ -9,11 +9,13 @@
 #
 
 # Third Party
+from numpy import ndarray
+
+# Geometry
+from shapely import Point, within
 from shapely.strtree import STRtree
 
 # ProMis
-from promis.geo import CartesianLocation
-
 from .relation import Relation
 
 
@@ -22,5 +24,5 @@ class Over(Relation):
         return f"{self.parameters.data['v0'][index]}::over(x_{index}, {self.location_type}).\n"
 
     @staticmethod
-    def compute_relation(location: CartesianLocation, r_tree: STRtree) -> float:
-        return location.geometry.within(r_tree.geometries.take(r_tree.nearest(location.geometry)))
+    def compute_relation(locations: ndarray[Point], r_tree: STRtree) -> float:
+        return within(locations, r_tree.geometries[r_tree.nearest(locations)])

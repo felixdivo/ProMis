@@ -15,12 +15,13 @@ from pickle import dump, load
 from typing import TypeVar
 
 # Third Party
-from numpy import array, clip, mean, sqrt, var, vstack
+from numpy import array, clip, mean, ndarray, sqrt, var, vstack
 from scipy.stats import norm
+from shapely import Point
 from shapely.strtree import STRtree
 
 # ProMis
-from promis.geo import CartesianCollection, CartesianLocation, CartesianRasterBand
+from promis.geo import CartesianCollection, CartesianRasterBand
 
 #: Helper to define derived relations within base class
 DerivedRelation = TypeVar("DerivedRelation", bound="Relation")
@@ -57,14 +58,14 @@ class Relation(ABC):
 
     @staticmethod
     @abstractmethod
-    def compute_relation(location: CartesianLocation, r_tree: STRtree) -> float:
+    def compute_relation(locations: ndarray[Point], r_tree: STRtree) -> float:
         pass
 
     @classmethod
-    def compute_parameters(cls, location: CartesianLocation, r_trees: list[STRtree]) -> array:
-        relation_data = [cls.compute_relation(location, r_tree) for r_tree in r_trees]
+    def compute_parameters(cls, locations: ndarray[Point], r_trees: list[STRtree]) -> array:
+        relation_data = vstack([cls.compute_relation(locations, r_tree) for r_tree in r_trees])
 
-        return array([mean(relation_data), var(relation_data)])
+        return array([mean(relation_data, axis=0), var(relation_data, axis=0)]).T
 
     @classmethod
     def from_r_trees(

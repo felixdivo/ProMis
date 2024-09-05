@@ -9,11 +9,16 @@
 #
 
 # Third Party
+from numpy import ndarray
+
+# Geometry
+from shapely import Point, distance
 from shapely.strtree import STRtree
 
 # ProMis
-from promis.geo import CartesianCollection, CartesianLocation
-from promis.logic.spatial.relation import ScalarRelation
+from promis.geo import CartesianCollection
+
+from .relation import ScalarRelation
 
 
 class Distance(ScalarRelation):
@@ -28,5 +33,5 @@ class Distance(ScalarRelation):
         super().__init__(parameters, location_type, "distance")
 
     @staticmethod
-    def compute_relation(location: CartesianLocation, r_tree: STRtree) -> float:
-        return location.geometry.distance(r_tree.geometries.take(r_tree.nearest(location.geometry)))
+    def compute_relation(locations: ndarray[Point], r_tree: STRtree) -> float:
+        return distance(locations, r_tree.geometries[r_tree.nearest(locations)])
