@@ -21,7 +21,7 @@ from numpy import array, asarray, isfinite, ndarray, vstack
 from shapely.geometry import Polygon as ShapelyPolygon
 
 # ProMis
-from promis.geo.geospatial import Geospatial, LocationType
+from promis.geo.geospatial import Geospatial
 from promis.geo.helpers import meters_to_radians, radians_to_meters
 from promis.geo.location import CartesianLocation, PolarLocation
 from promis.models import Gaussian
@@ -35,7 +35,7 @@ class Polygon(Geospatial):
         self,
         locations: list[PolarLocation | CartesianLocation],
         holes: list[list[PolarLocation | CartesianLocation]] | None = None,
-        location_type: LocationType = LocationType.UNKNOWN,
+        location_type: str | None = None,
         name: str | None = None,
         identifier: int | None = None,
         covariance: ndarray | None = None,
@@ -89,8 +89,16 @@ class Polygon(Geospatial):
             The set of sampled polygons, each with same name, identifier etc.
         """
 
-        # Check that this actually has some uncertainty
-        assert self.distribution is not None, "Sampling can only be done on uncertain geometry!"
+        # Check if a distribution is given
+        if self.distribution is None:
+            return type(self)(
+                self.locations,
+                self.holes,
+                self.location_type,
+                self.name,
+                self.identifier,
+                self.covariance,
+            )
 
         # Gather all the sampled polygons
         sampled_polygons = []
@@ -175,7 +183,7 @@ class PolarPolygon(Polygon):
         self,
         locations: list[PolarLocation],
         holes: list[list[PolarLocation]] | None = None,
-        location_type: LocationType = LocationType.UNKNOWN,
+        location_type: str | None = None,
         name: str | None = None,
         identifier: int | None = None,
         covariance: ndarray | None = None,
@@ -304,7 +312,7 @@ class CartesianPolygon(Polygon):
         self,
         locations: list[CartesianLocation],
         holes: list[list[CartesianLocation]] | None = None,
-        location_type: LocationType = LocationType.UNKNOWN,
+        location_type: str | None = None,
         name: str | None = None,
         identifier: int | None = None,
         covariance: ndarray | None = None,

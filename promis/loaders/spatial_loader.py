@@ -9,61 +9,46 @@
 #
 
 # Standard Library
-from abc import ABC, abstractmethod
+from abc import ABC
 
 # Third Party
 from numpy import vstack
 
 # ProMis
-from promis.geo import CartesianMap, PolarLocation, PolarMap
+from promis.geo import CartesianLocation, CartesianMap, PolarLocation, PolarMap
+from promis.geo.polygon import CartesianPolygon
 
 
 class SpatialLoader(ABC):
     """A base class for loaders of geospatial objects from differents sources and interfaces."""
 
-    @abstractmethod
-    def load_polar(self, origin: PolarLocation, width: float, height: float) -> PolarMap:
-        """Loads a :class:promis.geo.PolarMap around a given origin point.
+    def __init__(self, origin: PolarLocation, dimensions: tuple[float, float]):
+        self.origin = origin
+        self.dimensions = dimensions
+        self.features = []
 
-        Args:
-            origin: A point that defines the center of the map
-            width: The width of the map in meters
-            height: The height of the map in meters
+    def to_polar_map(self) -> PolarMap:
+        return PolarMap(self.origin, self.features)
 
-        Returns:
-            The PolarMap with all features within the specified area
-        """
-
-        raise NotImplementedError()
-
-    def load_cartesian(self, origin: PolarLocation, width: float, height: float) -> CartesianMap:
-        """Loads a :class:promis.geo.CartesianMap around a given origin point.
-
-        Args:
-            origin: A point that defines the center of the map
-            width: The width of the map in meters
-            height: The height of the map in meters
-
-        Returns:
-            The PolarMap with all features within the specified area
-        """
-
-        return self.load_polar(origin, width, height).to_cartesian()
+    def to_cartesian_map(self) -> CartesianMap:
+        return PolarMap(self.origin, self.features).to_cartesian()
 
     @staticmethod
-    def compute_bounding_box(
-        origin: PolarLocation, width: float, height: float
+    def compute_polar_bounding_box(
+        origin: PolarLocation, dimensions: tuple[float, float]
     ) -> tuple[float, float, float, float]:
         """Computes the north, east, south and west limits of the area to be loaded.
 
         Args:
             origin: A point that defines the center of the map
-            width: The width of the map in meters
-            height: The height of the map in meters
+            dimensions: The width and height of the map in meters
 
         Returns:
             Southern latitude, western longitude, northern latitude and eastern longitude
         """
+
+        # Unpack dimensions
+        width, height = dimensions
 
         # Compute bounding box corners in Cartesian and project back to polar
         cartesian_origin = origin.to_cartesian()
@@ -71,3 +56,29 @@ class SpatialLoader(ABC):
         south_west = (cartesian_origin - vstack([width / 2.0, height / 2.0])).to_polar(origin)
 
         return south_west.latitude, south_west.longitude, north_east.latitude, north_east.longitude
+
+    @staticmethod
+    def compute_cartesian_bounding_box(
+        origin: CartesianLocation, dimensions: tuple[float, float]
+    ) -> CartesianPolygon:
+        """Computes the north, east, south and west limits of the area to be loaded.
+
+        Args:
+            origin: A point that defines the center of the map
+            dimensions: The width and height of the map in meters
+
+        Returns:
+            Southern latitude, western longitude, northern latitude and eastern longitude
+        """
+
+        width, height = dimensions
+
+        return CartesianPolygon(
+            [
+                # clockwise: top-left, ...
+                CartesianLocation(east=origin.east - width / 2, north=origin.north + height / 2),
+                CartesianLocation(east=origin.east + width / 2, north=origin.north + height / 2),
+                CartesianLocation(east=origin.east + width / 2, north=origin.north - height / 2),
+                CartesianLocation(east=origin.east - width / 2, north=origin.north - height / 2),
+            ]
+        )

@@ -9,8 +9,10 @@
 #
 
 # ProMis
-from promis.promis import ProMis
+from .promis import ProMis
+from .star_map import StaRMap
 
+__all__ = ["ProMis", "StaRMap"]
 __version__ = "0.1.0"
 __author__ = "Simon Kohaut"
 
