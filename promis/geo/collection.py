@@ -138,6 +138,9 @@ class Collection(ABC):
     def scatter(self, value_index: int = 0, axis=None, **kwargs):
         if axis is None:
             axis = plt
+            axis.gca().set_aspect("equal")
+        else:
+            axis.set_aspect("equal")
 
         coordinates = self.coordinates()
         colors = self.values()[:, value_index].ravel()
