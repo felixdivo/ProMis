@@ -52,16 +52,9 @@ class StaRMap:
     ) -> "StaRMap":
         """Setup the StaR Map environment representation."""
 
-        # Check parameters
-        assert method in [
-            "linear",
-            "nearest",
-            "gaussian_process",
-        ], f"StaRMap does not support the method {method}"
-
         # Setup distance and over relations
-        self.target = target
         self.uam = uam
+        self.target = target
         self.method = method
 
         if location_types is None:
@@ -70,25 +63,22 @@ class StaRMap:
             self.location_types = location_types
 
         # Each relation is stored as collection of support points and fitted approximator
+        self.clear_relations()
+
+    def clear_relations(self):
+        """Clear out the stored relations data."""
+
+        # Each relation is stored as collection of support points and fitted approximator
         self.relations = {
-            "over": defaultdict(
-                lambda: {
-                    "collection": CartesianCollection(self.target.origin, 2),
-                    "approximator": None,
-                }
-            ),
-            "distance": defaultdict(
-                lambda: {
-                    "collection": CartesianCollection(self.target.origin, 2),
-                    "approximator": None,
-                }
-            ),
-            "depth": defaultdict(
-                lambda: {
-                    "collection": CartesianCollection(self.target.origin, 2),
-                    "approximator": None,
-                }
-            ),
+            "over": defaultdict(self._empty_relation),
+            "distance": defaultdict(self._empty_relation),
+            "depth": defaultdict(self._empty_relation),
+        }
+
+    def _empty_relation(self):
+        return {
+            "collection": CartesianCollection(self.target.origin, 2),
+            "approximator": None,
         }
 
     @staticmethod
@@ -103,6 +93,38 @@ class StaRMap:
             case _:
                 raise ValueError(f"Requested unknown relation '{relation}' from StaR Map")
 
+    def all_relations(self) -> list[Relation]:
+        return [
+            self.get(relation_type, location_type)
+            for relation_type in self.relations
+            for location_type in self.relations[relation_type]
+        ]
+
+    @property
+    def relation_types(self) -> set[str]:
+        return set(self.relations.keys())
+
+    @property
+    def relation_arities(self) -> dict[str, int]:
+        return {name: self.relation_name_to_class(name).arity() for name in self.relation_types}
+
+    @property
+    def target(self) -> CartesianCollection:
+        return self._target
+
+    @target.setter
+    def target(self, target: CartesianCollection) -> None:
+        # Validate that target and UAM have the same origin
+        if target.origin != self.uam.origin:
+            raise ValueError("StaRMap target and UAM must have the same origin")
+
+        # Actually store the target
+        self._target = target
+
+        # Make sure to refit if target changes
+        if self.is_fitted:
+            self.fit()
+
     @staticmethod
     def load(path) -> "StaRMap":
         with open(path, "rb") as file:
@@ -112,9 +134,22 @@ class StaRMap:
         with open(path, "wb") as file:
             dump(self, file)
 
-    def set_method(self, method: str):
-        self.method = method
-        self.fit()
+    @property
+    def method(self) -> str:
+        return self._method
+
+    @method.setter
+    def method(self, method: str) -> None:
+        assert method in [
+            "linear",
+            "nearest",
+            "gaussian_process",
+        ], f"StaRMap does not support the method {method}"
+        self._method = method
+
+        # Make sure to refit if method changes
+        if self.is_fitted:
+            self.fit()
 
     def fit(
         self,
@@ -161,6 +196,20 @@ class StaRMap:
             else:
                 raise f"Unsupported method {self.method} in StaRMap!"
 
+    @property
+    def is_fitted(self) -> bool:
+        # In the beginning, self.relations might not be defined yet
+        return hasattr(self, "relations") and (
+            all(
+                (
+                    relation not in self.relations
+                    or location_type not in self.relations[relation]
+                    or self.relations[relation][location_type]["approximator"] is not None
+                )
+                for relation, location_type in product(self.relations, self.location_types)
+            )
+        )
+
     def get(self, relation: str, location_type: str) -> Distance | Over:
         """Get the computed data for a relation to a location type.
 
@@ -196,17 +245,6 @@ class StaRMap:
                 return klass(parameters, location_type)
             case "depth":
                 return klass(parameters)
-
-    def all_relations(self) -> list[Relation]:
-        return [
-            self.get(relation_type, location_type)
-            for relation_type in self.relations
-            for location_type in self.relations[relation_type]
-        ]
-
-    @property
-    def relation_types(self) -> set[str]:
-        return set(self.relations.keys())
 
     def _train_gaussian_process(
         self,

@@ -61,6 +61,11 @@ class Relation(ABC):
     def compute_relation(locations: ndarray[Point], r_tree: STRtree) -> float:
         pass
 
+    @staticmethod
+    @abstractmethod
+    def arity() -> int:
+        """Return the arity of the relation."""
+
     @classmethod
     def compute_parameters(cls, locations: ndarray[Point], r_trees: list[STRtree]) -> array:
         relation_data = vstack([cls.compute_relation(locations, r_tree) for r_tree in r_trees])

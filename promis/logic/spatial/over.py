@@ -26,3 +26,7 @@ class Over(Relation):
     @staticmethod
     def compute_relation(locations: ndarray[Point], r_tree: STRtree) -> float:
         return within(locations, r_tree.geometries[r_tree.nearest(locations)])
+
+    @staticmethod
+    def arity() -> int:
+        return 2

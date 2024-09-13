@@ -35,3 +35,7 @@ class Distance(ScalarRelation):
     @staticmethod
     def compute_relation(locations: ndarray[Point], r_tree: STRtree) -> float:
         return distance(locations, r_tree.geometries[r_tree.nearest(locations)])
+
+    @staticmethod
+    def arity() -> int:
+        return 2
