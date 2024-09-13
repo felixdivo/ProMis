@@ -198,11 +198,15 @@ class StaRMap:
                 return klass(parameters)
 
     def all_relations(self) -> list[Relation]:
-        relations = []
-        for relation_type in self.relations:
-            for location_type in self.relations[relation_type]:
-                relations.append(self.get(relation_type, location_type))
-        return relations
+        return [
+            self.get(relation_type, location_type)
+            for relation_type in self.relations
+            for location_type in self.relations[relation_type]
+        ]
+
+    @property
+    def relation_types(self) -> set[str]:
+        return set(self.relations.keys())
 
     def _train_gaussian_process(
         self,
