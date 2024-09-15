@@ -16,11 +16,12 @@ from functools import cache
 from itertools import product
 from pickle import dump, load
 from time import time
+from typing import Any, TypedDict
 
 # Third Party
 from numpy import array, sort, unique
 from numpy.random import choice
-from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
+from scipy.interpolate import RegularGridInterpolator
 from shapely import STRtree
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -28,13 +29,33 @@ from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 from sklearn.preprocessing import StandardScaler, normalize
 
 # ProMis
-from promis.geo import CartesianCollection, CartesianLocation, CartesianMap, CartesianRasterBand
+from promis.geo import (
+    CartesianCollection,
+    CartesianLocation,
+    CartesianMap,
+    CartesianRasterBand,
+    Collection,
+)
 from promis.logic.spatial import Distance, Over, Relation
 from promis.logic.spatial.depth import Depth
 
 
+class RelationInformation(TypedDict):
+    collection: Collection
+    approximator: Any
+
+
 class StaRMap:
     """A Statistical Relational Map.
+
+    Among others, this holds two types of points: the target points and the support points.
+    Initially the value of the relations are determined at the support points.
+    To determine the value at the target points, the relations are approximated using the
+    support points, e.g., through linear interpolation.
+    When solving a ProMis problem, the solution is computed at the target points.
+
+    Note:
+        For efficiency reasons, support points can only be given as a regular grid.
 
     Args:
         target: The collection of points to output for each relation
@@ -63,6 +84,7 @@ class StaRMap:
             self.location_types = location_types
 
         # Each relation is stored as collection of support points and fitted approximator
+        self.relations: dict[str, dict[str | None, RelationInformation]]
         self.clear_relations()
 
     def clear_relations(self):
@@ -75,7 +97,7 @@ class StaRMap:
             "depth": defaultdict(self._empty_relation),
         }
 
-    def _empty_relation(self):
+    def _empty_relation(self) -> RelationInformation:
         return {
             "collection": CartesianCollection(self.target.origin, 2),
             "approximator": None,
@@ -168,33 +190,47 @@ class StaRMap:
             if relation not in self.relations or location_type not in self.relations[relation]:
                 continue
 
-            if self.method == "gaussian_process":
-                # Setup input scaler
-                scaler = StandardScaler().fit(self.target.coordinates())
+            # TODO We should determine when we can use
+            # scipy.interpolate.RegularGridInterpolator ?
+            # Also, we'd really like to interpolate linearly withing the
+            # support points, but with "nearest" outside of them.
 
-                # Fit GP to relation data and store approximator
-                gaussian_process, _ = self._train_gaussian_process(
-                    self.relations[relation][location_type]["collection"], None
-                )
-                self.relations[relation][location_type]["approximator"] = (gaussian_process, scaler)
-            elif self.method == "linear":
-                # Get coordinates of overall training samples so far
-                coordinates = self.relations[relation][location_type]["collection"].coordinates()
+            match self.method:
+                case "gaussian_process":
+                    # Setup input scaler
+                    scaler = StandardScaler().fit(self.target.coordinates())
 
-                # Fit linear interpolator for each relation
-                self.relations[relation][location_type]["approximator"] = LinearNDInterpolator(
-                    coordinates, self.relations[relation][location_type]["collection"].values()
-                )
-            elif self.method == "nearest":
-                # Get coordinates of overall training samples so far
-                coordinates = self.relations[relation][location_type]["collection"].coordinates()
+                    # Fit GP to relation data and store approximator
+                    gaussian_process, _ = self._train_gaussian_process(
+                        self.relations[relation][location_type]["collection"], None
+                    )
+                    self.relations[relation][location_type]["approximator"] = (
+                        gaussian_process,
+                        scaler,
+                    )
 
-                # Fit voronoi interpolator for each relation
-                self.relations[relation][location_type]["approximator"] = NearestNDInterpolator(
-                    coordinates, self.relations[relation][location_type]["collection"].values()
-                )
-            else:
-                raise f"Unsupported method {self.method} in StaRMap!"
+                # Could easily be extended to other methods, like spline interpolation
+                case "linear" | "nearest":
+                    collection = self.relations[relation][location_type]["collection"]
+
+                    # Get coordinates of overall training samples so far
+                    all_coordinates = collection.coordinates().reshape(*self._support_resolution, 2)
+                    x = all_coordinates[:, 0, 0]
+                    y = all_coordinates[0, :, 1]
+
+                    # Fit linear interpolator for each relation
+                    self.relations[relation][location_type]["approximator"] = (
+                        RegularGridInterpolator(
+                            (x, y),
+                            collection.values().reshape(*self._support_resolution, 2),
+                            method=self.method,
+                            bounds_error=False,
+                            fill_value=None,
+                        )
+                    )
+
+                case _:
+                    raise f"Unsupported method {self.method} in StaRMap!"
 
     @property
     def is_fitted(self) -> bool:
@@ -360,7 +396,7 @@ class StaRMap:
 
     def add_support_points(
         self,
-        support: CartesianCollection,
+        support: CartesianRasterBand,
         number_of_random_maps: int,
         relations: list[str] | None = None,
         location_types: list[str | None] | None = None,
@@ -376,6 +412,8 @@ class StaRMap:
 
         # TODO: This could be parallelized, as each relation is independent from the others.
 
+        # TODO: this is a bit of a hack and should be done more elegantly
+        self._support_resolution = support.resolution
         support_coordinates = support.coordinates()
         support_points = array([location.geometry for location in support.to_cartesian_locations()])
 

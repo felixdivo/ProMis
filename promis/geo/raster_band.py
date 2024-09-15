@@ -13,7 +13,7 @@ from abc import ABC
 from itertools import product
 
 # Third Party
-from numpy import array, concatenate, linspace, meshgrid, ravel, vstack, zeros
+from numpy import array, concatenate, linspace, meshgrid, ndarray, ravel, vstack, zeros, asanyarray
 from pandas import DataFrame
 
 # ProMis
@@ -74,9 +74,12 @@ class CartesianRasterBand(RasterBand, CartesianCollection):
         # Compute coordinates from spatial dimensions and resolution
         x_coordinates = linspace(-self.width / 2, self.width / 2, self.resolution[0])
         y_coordinates = linspace(-self.height / 2, self.height / 2, self.resolution[1])
-        raster_coordinates = vstack(list(map(ravel, meshgrid(x_coordinates, y_coordinates)))).T
+        raster_coordinates = vstack(
+            list(map(ravel, meshgrid(x_coordinates, y_coordinates, indexing="ij")))
+        ).T
 
         # Put coordinates and default value 0 together into matrix and set DataFrame
+        # TODO: The creation of this DataFrame could be factored out into a superclass
         raster_entries = concatenate(
             (raster_coordinates, zeros((raster_coordinates.shape[0], self.dimensions))), axis=1
         )

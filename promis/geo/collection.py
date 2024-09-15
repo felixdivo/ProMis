@@ -161,7 +161,7 @@ class CartesianCollection(Collection):
 
         return locations
 
-    def to_polar(self):
+    def to_polar(self) -> "PolarCollection":
         # Apply the inverse projection of the origin location
         longitudes, latitudes = self.origin.projection(
             self.data["east"].to_numpy(), self.data["north"].to_numpy(), inverse=True
@@ -193,7 +193,7 @@ class PolarCollection(Collection):
 
         return locations
 
-    def to_cartesian(self) -> CartesianLocation:
+    def to_cartesian(self) -> CartesianCollection:
         # Apply the inverse projection of the origin location
         easts, norths = self.origin.projection(
             self.data["longitude"].to_numpy(), self.data["latitude"].to_numpy()

@@ -9,17 +9,18 @@
 #
 
 # Standard Library
-from collections.abc import Generator
 from copy import deepcopy
 from multiprocessing import Pool
 from re import finditer
+from functools import cached_property
+from pickle import dump, load
 
 # Third Party
 from numpy import array
 from rich.progress import track
 
 # ProMis
-from promis.geo import CartesianRasterBand
+from promis.geo import CartesianCollection
 from promis.logic import Solver
 from promis.star_map import StaRMap
 
@@ -27,18 +28,20 @@ from promis.star_map import StaRMap
 class ProMis:
     """The ProMis engine to create Probabilistic Mission Landscapes."""
 
-    def __init__(self, star_map: StaRMap) -> None:
+    def __init__(self, star_map: StaRMap, logic: str) -> None:
         """Setup the ProMis engine.
 
         Args:
             star_map: The statistical relational map holding the parameters for ProMis
+            logic: The constraints of the landscape(X) predicate, including its definition
         """
 
         self.star_map = star_map
+        self.logic = logic
 
     def solve(
-        self, logic: str, n_jobs: int = 1, batch_size: int = 1, show_progress: bool = False
-    ) -> CartesianRasterBand:
+        self, n_jobs: int = 1, batch_size: int = 1, show_progress: bool = False
+    ) -> CartesianCollection:
         """Solve the given ProMis problem.
 
         It searches the provided logic for the used relations and location types and
@@ -47,7 +50,6 @@ class ProMis:
         into fewer solver invocations to speed up computations.
 
         Args:
-            logic: The constraints of the landscape(X) predicate, including its definition
             n_jobs: How many workers to use in parallel
             batch_size: How many pixels to infer at once
             show_progress: Whether to show a progress bar
@@ -65,7 +67,7 @@ class ProMis:
         # StaRMap.get() is expensive, so we only do this once
         relations = [
             self.star_map.get(relation_type, location_type)
-            for relation_type, location_type in self.mentioned_relations(logic)
+            for relation_type, location_type in self.mentioned_relations
         ]
 
         # We batch up queries into separate programs
@@ -75,7 +77,7 @@ class ProMis:
             batch = range(index, index + batch_size)
 
             # Write the background knowledge, queries and parameters to the program
-            program = logic + "\n"
+            program = self.logic + "\n"
             for batch_index in batch:
                 if batch_index >= number_of_queries:
                     break
@@ -85,8 +87,13 @@ class ProMis:
                 for relation in relations:
                     program += relation.index_to_distributional_clause(batch_index)
 
+                program += "\n"  # Make it easier to read
+
             # Add program to collection
             programs.append(program)
+
+            if index == 0:
+                print(program)  # TODO: Remove
 
         # Solve in parallel with pool of workers
         with Pool(n_jobs) as pool:
@@ -108,7 +115,8 @@ class ProMis:
         inference_results.data["v0"] = array(flattened_data)
         return inference_results
 
-    def mentioned_relations(self, logic: str) -> Generator[tuple[str, str], None, None]:
+    @cached_property
+    def mentioned_relations(self) -> list[tuple[str, str | None]]:
         """Determine which relations are mentioned in the logic.
 
         Args:
@@ -118,6 +126,8 @@ class ProMis:
             A tuple of all nessesary combinations of the relation and location types as strings
         """
 
+        result: list[tuple[str, str | None]] = []
+
         for name, arity in self.star_map.relation_arities.items():
             realtes_to = ",".join([r"\s*((?:'\w*')|(?:\w+))\s*"] * (arity - 1))
 
@@ -125,22 +135,33 @@ class ProMis:
             if realtes_to:
                 realtes_to = "," + realtes_to
 
-            for match in finditer(rf"({name})\(X{realtes_to}\)", logic):
+            for match in finditer(rf"({name})\(X{realtes_to}\)", self.logic):
                 name = match.group(1)
                 if name == "landscape":
                     continue  # Ignore landscape relation since it is not part of the StaRMap
 
                 match arity:
                     case 1:
-                        yield name, None
+                        result.append((name, None))
                     case 2:
                         location_type = match.group(2)
                         if location_type[0] in "'\"":  # Remove quotes
                             location_type = location_type[1:-1]
-                        yield name, location_type
+                        result.append((name, location_type))
                     case _:
                         raise Exception(f"Only arity 1 and 2 are supported, but got {arity}")
+
+        return result
 
     @staticmethod
     def run_inference(program):
         return Solver(program).inference()
+
+    @staticmethod
+    def load(path) -> "ProMis":
+        with open(path, "rb") as file:
+            return load(file)
+
+    def save(self, path):
+        with open(path, "wb") as file:
+            dump(self, file)
