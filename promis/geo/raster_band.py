@@ -11,10 +11,12 @@
 # Standard Library
 from abc import ABC
 from itertools import product
+from typing import Any
 
 # Third Party
-from numpy import array, concatenate, linspace, meshgrid, ndarray, ravel, vstack, zeros, asanyarray
+from numpy import array, concatenate, linspace, meshgrid, ravel, vstack, zeros
 from pandas import DataFrame
+from scipy.interpolate import RegularGridInterpolator
 
 # ProMis
 from promis.geo import (
@@ -84,6 +86,33 @@ class CartesianRasterBand(RasterBand, CartesianCollection):
             (raster_coordinates, zeros((raster_coordinates.shape[0], self.dimensions))), axis=1
         )
         self.data = DataFrame(raster_entries, columns=self.data.columns)
+
+    def get_interpolator(self, method: str = "linear") -> RegularGridInterpolator:
+        """Get an interpolator for the raster band.
+
+        Args:
+            method: The interpolation method to use
+
+        Returns:
+            A callable interpolator function
+        """
+
+        # Get coordinates
+        all_coordinates = self.coordinates().reshape(*self.resolution, 2)
+        x = all_coordinates[:, 0, 0]
+        y = all_coordinates[0, :, 1]
+
+        # Get values
+        values = self.values().reshape(*self.resolution, self.dimensions)
+
+        # Create interpolator
+        return RegularGridInterpolator(
+            (x, y),
+            values,
+            method=method,
+            bounds_error=False,
+            fill_value=None,
+        )
 
 
 class PolarRasterBand(RasterBand, PolarCollection):

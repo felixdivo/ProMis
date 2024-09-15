@@ -40,7 +40,11 @@ class ProMis:
         self.logic = logic
 
     def solve(
-        self, n_jobs: int = 1, batch_size: int = 1, show_progress: bool = False
+        self,
+        n_jobs: int = 1,
+        batch_size: int = 1,
+        show_progress: bool = False,
+        print_first: bool = False,
     ) -> CartesianCollection:
         """Solve the given ProMis problem.
 
@@ -53,6 +57,7 @@ class ProMis:
             n_jobs: How many workers to use in parallel
             batch_size: How many pixels to infer at once
             show_progress: Whether to show a progress bar
+            print_first: Whether to print the first program to stdout
 
         Returns:
             The Probabilistic Mission Landscape as well as time to
@@ -92,8 +97,8 @@ class ProMis:
             # Add program to collection
             programs.append(program)
 
-            if index == 0:
-                print(program)  # TODO: Remove
+            if index == 0 and print_first:
+                print(program)
 
         # Solve in parallel with pool of workers
         with Pool(n_jobs) as pool:
