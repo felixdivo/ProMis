@@ -1,0 +1,171 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProMis - Probabilistic Mission Design &mdash; ProMis 2.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=51b770b3"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            ProMis
+              <img src="_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="notebooks/usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gui.html">Graphical User Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">ProMis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">ProMis - Probabilistic Mission Design</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="promis-probabilistic-mission-design">
+<h1>ProMis - Probabilistic Mission Design<a class="headerlink" href="#promis-probabilistic-mission-design" title="Link to this heading"></a></h1>
+<p>ProMis (Probabilistic Mission Design) is a framework for designing and executing missions for autonomous agents, like drones, while adhering to a set of rules and constraints.
+It uses probabilistic first-order logic to reason about uncertainties in the environment and the agent’s state, ensuring that the agent acts in a principled and explainable manner.</p>
+<p>The image below shows ProMis being applied in a diverse set of scenarios.
+High-probability areas (safe to fly) are shown in blue, low-probability areas are shown in red, and unsuitable spaces are transparent.</p>
+<img alt="Probabilistic Mission Landscapes" src="_images/landscapes.png" />
+<section id="what-is-promis">
+<h2>What is ProMis?<a class="headerlink" href="#what-is-promis" title="Link to this heading"></a></h2>
+<p>ProMis allows users to formalize their knowledge about local rules, such as traffic regulations, to constrain an agent’s actions and motion.
+By employing a mathematical framework that combines formal reasoning with probabilistic inference, ProMis provides a weighted belief about whether the encoded rules are satisfied for any given state.</p>
+<p>This paves the way towards <strong>Constitutional Agents</strong>; agents that can justify their actions and operate predictably even under uncertainty.
+ProMis offers high-level, adaptable control over the navigation process, making it easy to integrate local laws, operator requirements, and environmental uncertainties into logical and spatial constraints.</p>
+<p>The output of ProMis is a set of scalar fields representing the probability of adhering to the agent’s “constitution” across its state-space.
+These can be used for path planning, automated clearance granting, and optimizing mission parameters.</p>
+</section>
+<section id="key-features">
+<h2>Key Features<a class="headerlink" href="#key-features" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Declarative Rule Engine:</strong> Define complex rules and constraints using probabilistic first-order logic.</p></li>
+<li><p><strong>Geospatial Reasoning:</strong> Natively handles spatial data and relationships, including uncertainties.</p></li>
+<li><p><strong>Constitutional Agents:</strong> Build agents that adhere to and explain their behavior based on a defined constitution.</p></li>
+<li><p><strong>Probabilistic Inference:</strong> Quantify and reason about uncertainty in sensor data, environmental models, and agent state.</p></li>
+<li><p><strong>Flexible &amp; Extensible:</strong> Easily integrate with existing navigation and control systems.</p></li>
+<li><p><strong>Visualization:</strong> Generate Probabilistic Mission Landscapes for intuitive mission analysis and planning.</p></li>
+</ul>
+</section>
+<section id="contents">
+<h2>Contents<a class="headerlink" href="#contents" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#standard-installation">Standard Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#developer-installation">Developer Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#docker">Docker</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="notebooks/usage.html">Usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="notebooks/usage.html#Dependencies">Dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="notebooks/usage.html#Uncertainty-Annotated-Maps">Uncertainty Annotated Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="notebooks/usage.html#Statistical-Relational-Maps">Statistical Relational Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="notebooks/usage.html#Probabilistic-Mission-Design">Probabilistic Mission Design</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="gui.html">Graphical User Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#promis.promis.ProMis"><code class="docutils literal notranslate"><span class="pre">ProMis</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#promis.star_map.StaRMap"><code class="docutils literal notranslate"><span class="pre">StaRMap</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-promis.geo">Geo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-promis.loaders">Loaders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-promis.logic">Logic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-promis.models">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-promis.estimators">Estimators</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Simon Kohaut.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
